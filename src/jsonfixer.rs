@@ -50,7 +50,6 @@ struct JsonParser<'a> {
     current_token: Option<Token>,
     config : JsonFixerConfig,
     output: String,
-    expect_value: bool,
 }
 
 impl<'a> JsonParser<'a> {
@@ -61,7 +60,6 @@ impl<'a> JsonParser<'a> {
             current_token: None,
             config: config,
             output: String::new(),
-            expect_value: false,
         };
 
         let _ = parser.advance();
@@ -70,18 +68,9 @@ impl<'a> JsonParser<'a> {
 
     /// Advances to the next token in the input stream.
     fn advance(&mut self) -> Result<(), JsonFixerError> {
-        loop {
-            self.current_token = self.tokenizer.next_token()?;
-            if let Some(Token::Whitespace(spaces,_ )) = &self.current_token {
-                if self.config.preserve() {
-
-                    self.output.push_str(&spaces);
-                }
-                continue;
-            }
-            break;
-        }
         
+        self.current_token = self.tokenizer.next_token()?;
+
         Ok(())
     }
 
@@ -92,10 +81,25 @@ impl<'a> JsonParser<'a> {
         Ok(std::mem::take(&mut self.output))
     }
 
+    fn consume_spaces(&mut self) -> Result<(), JsonFixerError> {
+        // Handle spaces first
+        if let Some(Token::Whitespace(spaces, _)) = &self.current_token{
+            if self.config.preserve() {
+                self.output.push_str(&spaces);
+            }
+            self.advance()?;
+        }
+        Ok(())
+    }
+
     /// Parses a JSON value (object, array, string, number, boolean, or null).
     fn parse_value(&mut self,) -> Result<(), JsonFixerError> {
-        match &self.current_token{
-            
+        
+        match &self.current_token {
+            Some(Token::Whitespace(_, _)) => {
+                self.consume_spaces()?;
+                self.parse_value()
+            },    
             Some(Token::LeftBrace(_)) => self.parse_object(),
             Some(Token::LeftBracket(_)) => self.parse_array(),
             Some(Token::String(s, _)) => {
@@ -125,30 +129,28 @@ impl<'a> JsonParser<'a> {
             
             Some(Token::UnquotedString(s, pos)) => {
 
-                if !self.expect_value {
-                    write!(self.output, "\"{}\"", s).unwrap();
-                    self.advance()?;
-                    Ok(())
-                }else {
-                    Err(JsonFixerError::UnexpectedToken(
-                        s.to_string(),
-                        pos.clone(),
-                    ))
-                }
+                Err(JsonFixerError::UnexpectedToken(
+                    s.to_string(),
+                    pos.clone(),
+                ))
             },
-            None => Err(JsonFixerError::UnexpectedEndOfInput(
-                self.tokenizer.current_position(),
-            )),
+            None => {
+                Err(JsonFixerError::UnexpectedEndOfInput(
+                    self.tokenizer.current_position(),
+                ))
+            },
             
             // Should be reached
-            Some(unexpect_token)=> Err(JsonFixerError::UnexpectedToken(
-                unexpect_token.get(),
-                unexpect_token.pos().clone(),
-            )),
+            Some(unexpect_token)=> {
+                Err(JsonFixerError::UnexpectedToken(
+                    unexpect_token.get(),
+                    unexpect_token.pos().clone(),
+                ))
+            },
         }
     }
 
-    fn add_comma_after_object_value(&mut self){
+    fn _add_comma_after_object_value(&mut self){
 
         let mut spaces = String::new();
             let last_ch: Option<(usize, char)> = self.output
@@ -180,10 +182,6 @@ impl<'a> JsonParser<'a> {
     /// Supports unquoted keys and trailing/multiple commas.
     fn parse_object(&mut self,) -> Result<(), JsonFixerError> {
         self.output.push('{');
-        if self.config.space_between() {
-            self.output.push(' ');
-        }
-        self.expect_value = false;
 
         self.advance()?; // Consume {
 
@@ -191,18 +189,19 @@ impl<'a> JsonParser<'a> {
             match token {
                 Token::RightBrace(_) => break,
                 Token::Comma(_) => {
-                    self.expect_value = false;
                     // Consume consecutive commas (e.g., {,,})
                     self.advance()?;
                     continue;
                 }
+                // Consume spaces before key if any
+                Token::Whitespace(_, _) => {
+                    // Consume consecutive commas (e.g., {,,})
+                    self.consume_spaces()?;
+                    continue;
+                }
                 _ => (),
             }
-
-            if self.config.space_between(){
-                self.output.push(' ');
-            }
-
+            
             // parse key
             match token {
                 // Instead of key reached end '}'
@@ -223,6 +222,9 @@ impl<'a> JsonParser<'a> {
 
             self.advance()?; // Consume the key
 
+            // Consume spaces before ':' if any
+            self.consume_spaces()?;
+
             // Expect colon
             match &self.current_token {
                 Some(Token::Colon(_)) => {
@@ -242,23 +244,18 @@ impl<'a> JsonParser<'a> {
                     ));
                 }
             }
+            
+            // Consume spaces before Value if any
+            self.consume_spaces()?;
 
-            if self.config.space_between() || self.config.space_after_key() {
-                self.output.push(' ');
-            }
-
-            self.expect_value = true;
             // Parse value
             self.parse_value()?;
-
-            // Ensure comma after value
-            self.add_comma_after_object_value();     
+            self.output.push(',');
         }
         
         // Remove last comma if any
         self.remove_last_comma();
 
-        self.expect_value = false;
         self.output.push('}');
         self.advance()?; // Consume }
 
@@ -268,10 +265,6 @@ impl<'a> JsonParser<'a> {
     /// Parses a JSON array, handling trailing/multiple commas.
     fn parse_array(&mut self,) -> Result<(), JsonFixerError> {
         self.output.push('[');
-        self.expect_value = true;
-        if self.config.space_between() || self.config.space_after_key(){
-            self.output.push(' ');
-        }
 
         self.advance()?; // Consume [
 
@@ -279,27 +272,28 @@ impl<'a> JsonParser<'a> {
             match token {
                 &Token::RightBracket(_) => break,
                 &Token::Comma(_) => {
-                    self.expect_value = false;
                     // Consume consecutive commas (e.g., [,,])
                     self.advance()?;
+                    continue;
+                }
+                // Consume spaces before key if any
+                Token::Whitespace(_, _) => {
+                    // Consume consecutive commas (e.g., {,,})
+                    self.consume_spaces()?;
                     continue;
                 }
                 _ => (),
             }
 
-            self.expect_value = true;
             self.parse_value()?;
 
             self.output.push(',');
-            if self.config.space_between() || self.config.space_after_key() {
-                self.output.push(' ');
-            } 
         }
         // Remove last comma if any
         self.remove_last_comma();
 
-        self.expect_value = false;
         self.output.push(']');
+        
         self.advance()?; // Consume ]
 
         Ok(())
