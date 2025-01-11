@@ -1,16 +1,28 @@
 use std::fmt::{self};
 
 use crate::json_tokenizer::Position;
+/// Errors that may occur while fixing a malformed JSON.
+#[derive(Debug)]
 pub enum JsonFixerError {
+    /// Unexpected character found in input.
     UnexpectedCharacter(char, Position),
+    /// Unmatched quotes in a string.
     UnmatchedQuotes(Position),
+    /// Input ended unexpectedly.
     UnexpectedEndOfInput(Position),
+    /// Comma is missing between JSON elements.
     MissingComma(Position),
+    /// Invalid number format encountered.
     InvalidNumber(String, Position),
+    /// Unexpected token in the input.
     UnexpectedToken(String, Position),
+
+    /// Serde error
+    #[cfg( feature = "serde")]
+    SerdeError(String),
 }
 
-impl fmt::Display for JsonFixerError {
+impl fmt::Display for JsonFixerError{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnexpectedToken(token, pos) => write!(
