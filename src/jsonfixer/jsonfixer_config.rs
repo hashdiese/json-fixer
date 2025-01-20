@@ -1,10 +1,11 @@
+use crate::jsonformatter::IndentStyle;
+
 
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialze))]
+//#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialze))]
 pub struct JsonFixerConfig {
     pub preserve : bool, // Keep whitesapces, keeps original format
-    pub space_after_key: bool, // Adds one space after : eg. {"key":"value"} to {"key": "value"}
     pub space_between: bool,  // Adds one space after between key and value eg. {"key":"value"} to { "key" : "value" }
     /*
     Make it humain readable
@@ -15,6 +16,9 @@ pub struct JsonFixerConfig {
     }
      */
     pub beautify: bool,
+    pub indent_style: IndentStyle,
+    pub indent_size: usize,
+    pub sort_keys: bool,
 }
 
 impl Default for JsonFixerConfig{
@@ -22,9 +26,11 @@ impl Default for JsonFixerConfig{
     fn default() -> Self{
         Self{
             preserve: false,
-            space_after_key: false,
             space_between: false,
             beautify:false,
+            indent_style: IndentStyle::Spaces,
+            indent_size: 0,
+            sort_keys: false,
         }
     }
 }
@@ -39,7 +45,7 @@ impl JsonFixerConfig {
         self.space_between && self.preserve == false
     }
 
-    pub fn space_after_key(&self) -> bool {
-        self.space_after_key && self.preserve == false && self.space_between == false 
+    pub fn beautify(&self) -> bool {
+        self.beautify && self.preserve == false
     }
 }

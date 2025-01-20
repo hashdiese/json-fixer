@@ -6,6 +6,7 @@
 use std::iter::Peekable;
 use std::str::Chars;
 
+use crate::jsonfixer_error::SyntaxError;
 use crate::JsonFixerError;
 
 /// Represents a position in the input text.
@@ -17,7 +18,7 @@ pub struct Position {
     pub column: usize,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token{
     LeftBrace(Position),              // '{'
     RightBrace(Position),             // '}'
@@ -116,10 +117,10 @@ impl<'a> JsonTokenizer<'a> {
                 '\'' | '"' => self.tokenize_string(ch).map(Some),
                 '.'| '+' | '-' | '0'..='9' => self.tokenize_number(ch).map(Some),
                 'a'..='z' | 'A'..='Z' | '_' => self.tokenize_identifier(ch).map(Some),
-                ch => Err(JsonFixerError::UnexpectedCharacter(ch, Position {
+                ch => Err(JsonFixerError::Syntax(SyntaxError::UnexpectedCharacter(ch, Position {
                     line: self.line,
                     column: self.column,
-                })),
+                }))),
             }
         } else {
             Ok(None)
@@ -170,7 +171,7 @@ impl<'a> JsonTokenizer<'a> {
 
         while let Some(ch) = self.advance() {
             match ch {
-                ch if ch == quote_char => return Ok(Token::String(result, start_pos)),
+                ch if ch == quote_char => return Ok(Token::String(result, start_pos)),          
                 '\\' => {
                     if let Some(next_ch) = self.advance() {
                         match next_ch {
@@ -202,7 +203,7 @@ impl<'a> JsonTokenizer<'a> {
                 _=> result.push(ch),
             }
         }
-        Err(JsonFixerError::UnmatchedQuotes(start_pos)) // placeholder
+        Err(JsonFixerError::Syntax(SyntaxError::UnmatchedQuotes(start_pos))) // placeholder
     }
 
     fn tokenize_number(&mut self, first_char: char) -> Result<Token, JsonFixerError>{
@@ -214,15 +215,17 @@ impl<'a> JsonTokenizer<'a> {
             // If there is no digit after +, it's invalid
             if let Some(next_char) = self.peek() {
                 if !next_char.is_digit(10) {
-                    return Err(JsonFixerError::InvalidNumber(number, start_pos));
+                    return Err(JsonFixerError::Syntax(SyntaxError::InvalidNumber(number, start_pos)));
                 }
             } else {
-                return Err(JsonFixerError::InvalidNumber(number, start_pos));
+                return Err(JsonFixerError::Syntax(SyntaxError::InvalidNumber(number, start_pos)));
             }
 
             if first_char == '+' { // Remove the +
                 number.clear();
-            }else{// Add 0 before the . eg. .123 -> 0.123
+            }
+
+            if first_char == '.' {// Add 0 before the . eg. .123 -> 0.123
                 number.clear();
                 number.push('0');
                 number.push('.');
@@ -243,7 +246,7 @@ impl<'a> JsonTokenizer<'a> {
 
         // it's a number that includes many dots
         if multi_dots {
-            return Err(JsonFixerError::InvalidNumber(number, start_pos));
+            return Err(JsonFixerError::Syntax(SyntaxError::InvalidNumber(number, start_pos)));
         }
 
         if number.chars().last().unwrap() == '.' { // remove the .

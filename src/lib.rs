@@ -1,12 +1,17 @@
-pub mod json_tokenizer;
+
 pub mod jsonfixer;
-pub mod jsonfixer_error;
+pub use jsonfixer::jsonformatter;
+pub use jsonfixer::jsonfixer_error;
+pub use jsonfixer::json_tokenizer;
 pub mod jsonfixer_tests;
-pub mod jsonfixer_config;
 
-
-pub use json_tokenizer::{JsonTokenizer, Token};
-pub use jsonfixer::JsonFixer;
-pub use jsonfixer_error::JsonFixerError;
-pub use jsonfixer_config::JsonFixerConfig;
-
+pub use jsonfixer::{
+    JsonFixer, 
+    JsonFixerConfig, 
+    JsonFormatter, 
+    JsonTokenizer,
+    Token,
+    JsonFixerError,
+    jsonparser::JsonEntryValue,
+    jsonparser::JsonValue,
+};

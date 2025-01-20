@@ -1,15 +1,16 @@
 
 #[cfg(test)]
 mod tests {
+    use crate::jsonfixer_error::SyntaxError;
     use crate::JsonFixer;
     use crate::JsonFixerError;
-    use crate::jsonfixer_config::JsonFixerConfig;
+    use crate::JsonFixerConfig;
 
     /*
     ************************** Remove whitespaces *************************
      */
 
-    ///*
+
     #[test]
     fn test_empty_object() {
         let input = "{}";
@@ -100,8 +101,8 @@ mod tests {
 
     #[test]
     fn test_string_escapes() {
-        let input = "\"Hello \\\"hello\\nnew line\\\"\"";
-        let expect = "\"Hello \\\"hello\nnew line\\\"\"";
+        let input = r#""Hello \"hello\\nnew line\" ""#;
+        let expect = r#""Hello \"hello\nnew line\" ""#;
         let mut fixer = JsonFixer::new(input);
         let output = fixer.fix().unwrap();
         println!("input : {:?}", input);
@@ -144,7 +145,7 @@ mod tests {
     fn test_error_unmatched_quotes() {
         let input = r#"{"name": "John"#;
         let mut fixer = JsonFixer::new(input);
-        assert!(matches!(fixer.fix(), Err(JsonFixerError::UnmatchedQuotes(_))));
+        assert!(matches!(fixer.fix(), Err(JsonFixerError::Syntax(SyntaxError::UnmatchedQuotes(_)))));
     }
 
     #[test]
@@ -153,7 +154,7 @@ mod tests {
         let mut fixer = JsonFixer::new(input);
         let result = fixer.fix();
         //println!("Error : {:?}",result);
-        assert!(matches!(result, Err(JsonFixerError::UnexpectedEndOfInput(_))));
+        assert!(matches!(result, Err(JsonFixerError::Syntax(SyntaxError::UnexpectedEndOfInput(_)))));
     }
 
     #[test]
@@ -170,7 +171,7 @@ mod tests {
             let result = fixer.fix();
 
             //println!("Test Error1: {:?}" ,result);
-            assert!(matches!(result, Err(JsonFixerError::InvalidNumber(_, _))));
+            assert!(matches!(result, Err(JsonFixerError::Syntax(SyntaxError::InvalidNumber(_, _)))));
         }
     }
 
@@ -181,7 +182,7 @@ mod tests {
         let result = fixer.fix();
         //println!("Test Error0: {:?}" ,result);
 
-        assert!(matches!(result, Err(JsonFixerError::UnexpectedToken(_, _))));
+        assert!(matches!(result, Err(JsonFixerError::Syntax(SyntaxError::UnexpectedToken(_, _)))));
     }
     #[test]
     fn test_fix_missing_comma() {
@@ -193,11 +194,11 @@ mod tests {
         assert_eq!(result.unwrap(), output);
         
     }
-    //*/
 
     /*
     ************************** Preserve *************************
      */
+    
     #[test]
     fn test_object_preserve() {
         let inputs = vec![
@@ -247,8 +248,194 @@ mod tests {
             }"#
             )
         ];
+        
         let mut config = JsonFixerConfig::default();
         config.preserve = true;
+        //config.sort_keys = true;
+
+        for input in inputs {
+            
+            let mut fixer = JsonFixer::with_config(input.0, config.clone());
+            let result = fixer.fix().unwrap();
+            println!("Input     : {}", input.0);
+            println!("Expected  : {}", input.1);
+            println!("Output    : {}", result);
+            assert_eq!(result, input.1);
+        }
+    }
+
+    #[test]
+    fn test_object_unpreserve() {
+        let inputs = vec![
+            ("{   }", "{}"),
+            (r#"{  
+            
+            }"#,
+            r#"{}"#
+            ),
+            (r#"{  
+
+            }"#,
+            r#"{}"#
+            ),
+            (r#"{  
+                "key1": 30,
+            }"#,
+            r#"{"key1":30}"#
+            ),
+            (r#"{  
+                "key1": 30,
+                key2 : "value",
+                key3 : {
+                    other : 12,
+                    name : "hashdiese"
+                    numbers: [  1, 2, 
+                    3,
+                    ],
+                }
+            }"#,
+            r#"{"key1":30,"key2":"value","key3":{"other":12,"name":"hashdiese","numbers":[1,2,3]}}"#
+            )
+        ];
+        
+        let mut config = JsonFixerConfig::default();
+        config.preserve = false;
+        config.sort_keys = false;
+
+        for input in inputs {
+            
+            let mut fixer = JsonFixer::with_config(input.0, config.clone());
+            let result = fixer.fix().unwrap();
+            println!("Input     : {}", input.0);
+            println!("Expected  : {}", input.1);
+            println!("Output    : {}", result);
+            assert_eq!(result, input.1);
+        }
+    }
+
+    #[test]
+    fn test_object_space_between() {
+        let inputs = vec![
+            ("{   }", "{}"),
+            (r#"{  
+            
+            }"#,
+            r#"{}"#
+            ),
+            (r#"{  
+
+            }"#,
+            r#"{}"#
+            ),
+            (r#"{  
+                "key1": 30,
+            }"#,
+            r#"{ "key1": 30 }"#
+            ),
+            (r#"{  
+                "key1": 30,
+                key2 : "value",
+                key3 : {
+                    other : 12,
+                    name : "hashdiese"
+                    numbers: [  1, 2, 
+                    3,
+                    ],
+                }
+            }"#,
+            r#"{ "key1": 30, "key2": "value", "key3": { "other": 12, "name": "hashdiese", "numbers": [ 1, 2, 3 ] } }"#
+            )
+        ];
+        
+        let mut config = JsonFixerConfig::default();
+        config.preserve = false;
+        config.sort_keys = false;
+        config.space_between = true;
+
+        for input in inputs {
+            
+            let mut fixer = JsonFixer::with_config(input.0, config.clone());
+            let result = fixer.fix().unwrap();
+            println!("Input     : {}", input.0);
+            println!("Expected  : {}", input.1);
+            println!("Output    : {}", result);
+            assert_eq!(result, input.1);
+        }
+    }
+    #[test]
+    fn test_object_pretty() {
+        let inputs = vec![
+            ("{   }", "{}"),
+            (r#"{  
+            
+            }"#,
+            r#"{}"#
+            ),
+            (r#"{  
+
+            }"#,
+            r#"{}"#
+            ),
+            (r#"  {  
+                "key1": 30,
+            }  "#,
+            r#"{
+    "key1": 30
+}"#
+            ),
+            (r#"{  
+                "key1": 30,
+                key2 : "value",
+                key3 : {
+                    other : 12,
+                    name : "hashdiese"
+                    numbers: [  1, 2, 
+                    3,
+                    ],
+                }
+            }"#,
+            r#"{
+    "key1": 30,
+    "key2": "value",
+    "key3": {
+        "other": 12,
+        "name": "hashdiese",
+        "numbers": [
+            1,
+            2,
+            3
+        ]
+    }
+}"#
+            )
+        ];
+        let __inputs = vec![ (
+        r#"{  
+            "key3" : {
+                "other" : 12,
+
+                ,
+
+                lang: "fr",
+            }
+            
+        }"#,
+        r#"{  
+            "key3" : {
+
+                "lang": "fr",
+                "other" : 12
+            }
+            
+        }"#
+        )
+    ];
+        let mut config = JsonFixerConfig::default();
+        config.preserve = false;
+        config.sort_keys = false;
+        config.space_between = false;
+        config.beautify = true;
+        config.indent_size = 4;
 
         for input in inputs {
             
