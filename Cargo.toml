@@ -9,7 +9,7 @@ homepage = "https://github.com/hashdiese/json-fixer"
 repository = "https://github.com/hashdiese/json-fixer"
 readme = "README.md"
 license = "MIT"
-keywords = ["json", "parser", "formatter", "fixer", "serialization", "deserialization"]
+keywords = ["json", "parser", "formatter", "fixer", "serialization"]
 categories = ["encoding", "parser-implementations", "development-tools", "value-formatting"]
 exclude = [
     "/.github",
