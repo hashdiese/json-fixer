@@ -1,14 +1,62 @@
 [package]
 name = "json-fixer"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
+authors = ["Hicham Dine Ahmed"]
+description = "A robust library for fixing and formatting malformed JSON with support for type conversion"
+documentation = "https://docs.rs/json-fixer"
+homepage = "https://github.com/hashdiese/json-fixer"
+repository = "https://github.com/hashdiese/json-fixer"
+readme = "README.md"
+license = "MIT"
+keywords = ["json", "parser", "formatter", "fixer", "serialization", "deserialization"]
+categories = ["encoding", "parser-implementations", "development-tools", "value-formatting"]
+exclude = [
+    "/.github",
+    "/examples",
+    "/tests",
+    "/benches",
+    "/.gitignore",
+    "/.travis.yml",
+]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
-#default = []
-#serde = ["dep:serde", "dep:serde_json"]
+default = []
+serde = ["dep:serde", "dep:serde_json"]
 
+[package.metadata.playground]
+features = ["serde"]
 
 [dependencies]
-serde = { version = "1.0.217", features = ["derive"]} #optional = true 
-serde_json = { version = "1.0.135"} #optional = true 
+
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true } 
+
+[dev-dependencies]
+criterion = "0.5"
+pretty_assertions = "1.4"
+tempfile = "3.8"
+test-case = "3.3"
+
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = 3
+
+[profile.dev]
+opt-level = 0
+debug = true
+
+[profile.test]
+opt-level = 0
+debug = true
+
+[badges]
+maintenance = { status = "actively-developed" }

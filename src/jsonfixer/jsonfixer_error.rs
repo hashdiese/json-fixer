@@ -1,33 +1,42 @@
 use std::fmt::{self};
 
-use crate::json_tokenizer::Position;
+use super::json_tokenizer::Position;
 /// Errors that may occur while fixing a malformed JSON.
-#[derive(Debug,)]
+#[derive(Debug)]
 pub enum JsonFixerError {
     Syntax(SyntaxError),
     Format(JsonFormatError),
     IO(std::fmt::Error),
     /// Serde error
-    //#[cfg( feature = "serde")]
+    #[cfg( feature = "serde")]
     SerdeError(String),
 }
 
 #[derive(Debug)]
 pub enum JsonFormatError {
-    LineTooLong {line: usize, length: usize, max: usize},
-    InvalidIndentation {line: usize},
+    LineTooLong {
+        line: usize,
+        length: usize,
+        max: usize,
+    },
+    InvalidIndentation {
+        line: usize,
+    },
 }
 impl fmt::Display for JsonFormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::LineTooLong{line, length, max} => write!(f, "Line {} is too long of length: {} \nExpeced max length: {}", line, length, max),
-            Self::InvalidIndentation{line} => write!(f, "Invalid Indentation at line: {}", line),
+            Self::LineTooLong { line, length, max } => write!(
+                f,
+                "Line {} is too long of length: {} \nExpeced max length: {}",
+                line, length, max
+            ),
+            Self::InvalidIndentation { line } => write!(f, "Invalid Indentation at line: {}", line),
         }
     }
 }
 
-
-impl std::error::Error for JsonFixerError{}
+impl std::error::Error for JsonFixerError {}
 
 impl fmt::Display for JsonFixerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -35,12 +44,11 @@ impl fmt::Display for JsonFixerError {
             Self::Syntax(err) => write!(f, "Syntax error: {}", err),
             Self::Format(err) => write!(f, "Format error: {}", err),
             Self::IO(err) => write!(f, "IO error: {}", err),
-            //#[cfg(feature = "serde")]
+            #[cfg(feature = "serde")]
             Self::SerdeError(err) => write!(f, "Serde error: {}", err),
         }
     }
 }
-
 
 #[derive(Debug)]
 pub enum SyntaxError {
@@ -58,7 +66,7 @@ pub enum SyntaxError {
     UnexpectedToken(String, Position),
 }
 
-impl fmt::Display for SyntaxError{
+impl fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnexpectedToken(token, pos) => write!(
